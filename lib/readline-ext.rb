@@ -1,7 +1,7 @@
 require 'fiddle'
 module Readline
   module Ext
-    unless @@loaded
+    unless defined?(@@loaded) && @@loaded
       libreadline = Fiddle.dlopen(nil)
 
       # accept line
