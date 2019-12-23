@@ -3,12 +3,12 @@
 require File.dirname(__FILE__) + "/lib/version"
 
 Gem::Specification.new do |gem|
-  gem.name = "readline-ext"
-  gem.version = Readline::Ext::VERSION
+  gem.name = "pryline"
+  gem.version = Pryline::VERSION
   gem.authors = ["Brian Graham"]
   gem.email = "bcgraham+github@gmail.com"
   gem.license = "MIT"
-  gem.homepage = "https://github.com/bcgraham/readline-ext"
+  gem.homepage = "https://github.com/bcgraham/pryline"
   gem.summary = "Extend Readline interface to more functions."
   gem.description = "Adds rl_bind_key, rl_bind_keyseq, rl_newline, rl_unbind_key, rl_unbind_keyseq."
 
