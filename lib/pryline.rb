@@ -1,5 +1,6 @@
 require 'fiddle'
 require 'forwardable'
+require 'readline'
 module Pryline
   unless defined?(@@loaded) && @@loaded
     HISTORY = Readline::HISTORY
