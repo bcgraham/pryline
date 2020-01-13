@@ -61,6 +61,55 @@ module Pryline
       accept_line.call(1, "\n".ord)
     end
 
+    # previous line
+    previous_line = Fiddle::Function.new(
+      libreadline['rl_previous_screen_line'],
+      [Fiddle::TYPE_INT, Fiddle::TYPE_INT],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:previous_line) do
+      previous_line.call(1, "f".ord)
+    end
+
+    # next line
+    next_line = Fiddle::Function.new(
+      libreadline['rl_next_screen_line'],
+      [Fiddle::TYPE_INT, Fiddle::TYPE_INT],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:next_line) do
+      next_line.call(1, "f".ord)
+    end
+
+    # next history
+    next_history = Fiddle::Function.new(
+      libreadline['rl_get_next_history'],
+      [Fiddle::TYPE_INT, Fiddle::TYPE_INT],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:next_history) do
+      next_history.call(1, "f".ord)
+    end
+
+    # previous history
+    previous_history = Fiddle::Function.new(
+      libreadline['rl_get_previous_history'],
+      [Fiddle::TYPE_INT, Fiddle::TYPE_INT],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:previous_history) do
+      previous_history.call(1, "f".ord)
+    end
+
+    where_history = Fiddle::Function.new(
+      libreadline['where_history'],
+      [Fiddle::TYPE_VOID],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:where_history) do
+      where_history.call(nil)
+    end
+
     # null function
     null_function = Fiddle::Function.new(
       libreadline['_rl_null_function'],
