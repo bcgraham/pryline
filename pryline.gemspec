@@ -18,7 +18,7 @@ Gem::Specification.new do |gem|
   gem.executables = []
 
   # Dependencies
-  gem.required_ruby_version = ">= 2.3.0"
+  gem.required_ruby_version = ">= 2.7.0"
 
-  gem.requirements << "Readline 8.0"
+  gem.requirements << "Readline 8.1"
 end

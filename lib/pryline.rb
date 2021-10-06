@@ -1,4 +1,5 @@
 require 'fiddle'
+require 'fiddle/import'
 require 'forwardable'
 require 'readline'
 module Pryline
@@ -49,6 +50,17 @@ module Pryline
     libreadline = Fiddle.dlopen(nil)
 
     BLOCK_CALLERS = {}
+
+    # paren blink timeout
+    set_paren_blink_timeout = Fiddle::Function.new(
+      libreadline['rl_set_paren_blink_timeout'],
+      [Fiddle::TYPE_INT],
+      Fiddle::TYPE_INT
+    )
+
+    Pryline.define_singleton_method(:set_paren_blink_timeout) do |usec|
+      set_paren_blink_timeout.call(usec)
+    end
 
     # accept line
     accept_line = Fiddle::Function.new(
@@ -174,11 +186,75 @@ module Pryline
       )
     end
 
+    # message
+
+    save_prompt = Fiddle::Function.new(libreadline['rl_save_prompt'], [Fiddle::TYPE_VOID], Fiddle::TYPE_INT)
+    Pryline.define_singleton_method(:save_prompt) do
+      save_prompt.call(nil)
+    end
+    set_message = Fiddle::Function.new(libreadline['rl_message'], [Fiddle::TYPE_UINTPTR_T], Fiddle::TYPE_INT)
+    Pryline.define_singleton_method(:set_message) do |message|
+      buffer, point = Pryline.line_buffer, Pryline.point
+      Pryline.delete_text
+      Pryline.point = 0
+      Pryline.redisplay
+      Pryline.save_prompt
+      Pryline.insert_text buffer
+      Pryline.point = point
+      set_message.call(
+        Fiddle::Pointer[message]
+      )
+    end
+
+    restore_prompt = Fiddle::Function.new(libreadline['rl_restore_prompt'], [Fiddle::TYPE_VOID], Fiddle::TYPE_INT)
+    Pryline.define_singleton_method(:restore_prompt) do
+      restore_prompt.call(nil)
+    end
+    clear_message = Fiddle::Function.new(libreadline['rl_clear_message'], [Fiddle::TYPE_VOID], Fiddle::TYPE_INT)
+    Pryline.define_singleton_method(:clear_message) do
+      Pryline.restore_prompt
+      clear_message.call(nil)
+    end
+
+    move_vert = Fiddle::Function.new(libreadline['_rl_move_vert'], [Fiddle::TYPE_INT], Fiddle::TYPE_VOID)
+    Pryline.define_singleton_method(:move_vert) do |dest|
+      move_vert.call(dest)
+    end
+
+    PromptLength = Fiddle::CStructBuilder.create(
+      Fiddle::CStruct,
+      [Fiddle::SIZEOF_INT],
+      %w(value)
+    ).new(Fiddle::Pointer.new(libreadline.sym('rl_visible_prompt_length')).to_i)
+    Pryline.define_singleton_method(:prompt_width) { PromptLength.value }
+
+    LastCPos = Fiddle::CStructBuilder.create(
+      Fiddle::CStruct,
+      [Fiddle::SIZEOF_INT],
+      %w(value)
+    ).new(Fiddle::Pointer.new(libreadline.sym('_rl_last_c_pos')).to_i)
+    Pryline.define_singleton_method(:last_c_pos) { LastCPos.value }
+    LastVPos = Fiddle::CStructBuilder.create(
+      Fiddle::CStruct,
+      [Fiddle::SIZEOF_INT],
+      %w(value)
+    ).new(Fiddle::Pointer.new(libreadline.sym('_rl_last_v_pos')).to_i)
+    Pryline.define_singleton_method(:last_v_pos) { LastVPos.value }
+    ApplicationName = Fiddle::CStructBuilder.create(
+      Fiddle::CStruct,
+      [1],
+      %w(rl_readline_name)
+    ).new(Fiddle::Pointer.new(libreadline.sym('rl_readline_name')).to_i)
+    Pryline.define_singleton_method(:application_name) { ApplicationName.rl_readline_name.to_s }
+    Pryline.define_singleton_method(:application_name=) do |name|
+      ApplicationName.rl_readline_name = Fiddle::Pointer[name]
+    end
+
     # helpers
     Pryline.define_singleton_method(:replace_buffer) do |new_contents|
       Pryline.delete_text
       Pryline.point = 0
-      Pryline.insert_text input
+      Pryline.insert_text new_contents
       Pryline.redisplay
     end
     @@loaded = true
