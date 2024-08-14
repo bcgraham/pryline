@@ -122,6 +122,31 @@ module Pryline
       where_history.call(nil)
     end
 
+    # set mark
+    set_mark = Fiddle::Function.new(
+      libreadline['_rl_set_mark_at_pos'],
+      [Fiddle::TYPE_INT], Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:set_mark) do |pos|
+      set_mark.call(pos)
+    end
+
+    # activate mark
+    activate_mark = Fiddle::Function.new(
+      libreadline['rl_activate_mark'],
+      [Fiddle::TYPE_VOID],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:activate_mark) { activate_mark.call(nil) }
+
+    # deactivate mark
+    deactivate_mark = Fiddle::Function.new(
+      libreadline['rl_deactivate_mark'],
+      [Fiddle::TYPE_VOID],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:deactivate_mark) { deactivate_mark.call(nil) }
+
     # null function
     null_function = Fiddle::Function.new(
       libreadline['_rl_null_function'],
@@ -150,8 +175,8 @@ module Pryline
     Pryline.define_singleton_method(:bind_key) do |key, &block|
       unbind_key.call(key.ord)
       BLOCK_CALLERS[key] = Fiddle::Closure::BlockCaller.new(
-        Fiddle::TYPE_VOID,
-        [Fiddle::TYPE_VOID],
+        Fiddle::TYPE_INT,
+        [Fiddle::TYPE_INT, Fiddle::TYPE_INT],
         &block
       )
       bind_key.call(
@@ -176,8 +201,8 @@ module Pryline
     Pryline.define_singleton_method(:bind_keyseq) do |keyseq, &block|
       unbind_keyseq(keyseq)
       BLOCK_CALLERS[keyseq] = Fiddle::Closure::BlockCaller.new(
-        Fiddle::TYPE_VOID,
-        [Fiddle::TYPE_VOID],
+        Fiddle::TYPE_INT,
+        [Fiddle::TYPE_INT, Fiddle::TYPE_INT],
         &block
       )
       bind_keyseq.call(
@@ -193,12 +218,23 @@ module Pryline
       save_prompt.call(nil)
     end
     set_message = Fiddle::Function.new(libreadline['rl_message'], [Fiddle::TYPE_UINTPTR_T], Fiddle::TYPE_INT)
-    Pryline.define_singleton_method(:set_message) do |message|
+    Pryline.define_singleton_method(:set_message_with_save) do |message|
       buffer, point = Pryline.line_buffer, Pryline.point
       Pryline.delete_text
       Pryline.point = 0
       Pryline.redisplay
       Pryline.save_prompt
+      Pryline.insert_text buffer
+      Pryline.point = point
+      set_message.call(
+        Fiddle::Pointer[message]
+      )
+    end
+    Pryline.define_singleton_method(:set_message) do |message|
+      buffer, point = Pryline.line_buffer, Pryline.point
+      Pryline.delete_text
+      Pryline.point = 0
+      Pryline.redisplay
       Pryline.insert_text buffer
       Pryline.point = point
       set_message.call(
@@ -211,8 +247,11 @@ module Pryline
       restore_prompt.call(nil)
     end
     clear_message = Fiddle::Function.new(libreadline['rl_clear_message'], [Fiddle::TYPE_VOID], Fiddle::TYPE_INT)
-    Pryline.define_singleton_method(:clear_message) do
+    Pryline.define_singleton_method(:clear_message_with_restore) do
       Pryline.restore_prompt
+      clear_message.call(nil)
+    end
+    Pryline.define_singleton_method(:clear_message) do
       clear_message.call(nil)
     end
 
@@ -248,6 +287,65 @@ module Pryline
     Pryline.define_singleton_method(:application_name) { ApplicationName.rl_readline_name.to_s }
     Pryline.define_singleton_method(:application_name=) do |name|
       ApplicationName.rl_readline_name = Fiddle::Pointer[name]
+    end
+
+    Pryline.define_singleton_method(:slice_buffer_at_cursor) do
+      left_of_cursor = Pryline.line_buffer[0...Pryline.point]
+      right_of_cursor = Pryline.line_buffer[(Pryline.point)..-1] || ''
+      Pryline.delete_text
+      Pryline.point = 0
+      Pryline.redisplay
+      [left_of_cursor, right_of_cursor]
+    end
+
+    Pryline.define_singleton_method(:reformat_buffer) do
+      left_of_cursor, right_of_cursor = Pryline.slice_buffer_at_cursor
+      left_ended_with_newline = left_of_cursor.end_with?("\n")
+      left_ended_with_whitespace = left_of_cursor.match?(/\s+\z/) && !left_ended_with_newline
+      left = left_of_cursor.lines.map(&:strip).join("\n")
+      left = "#{left}\n" if left_ended_with_newline
+      left = "#{left} " if left_ended_with_whitespace
+      indent = Pry::Indent.new
+      left = indent.indent(left)
+      Pryline.insert_text(left)
+      if right_of_cursor.strip != ''
+        point = Pryline.point
+        Pryline.delete_text
+        Pryline.point = 0
+        new_buffer = Pry::Indent.new.indent("#{left}#{right_of_cursor}")
+        Pryline.insert_text(new_buffer)
+        Pryline.point = point
+        Pryline.redisplay
+      elsif left_ended_with_newline
+        Pryline.insert_text indent.current_prefix
+      end
+    end
+
+    # reset line state
+    reset_line_state = Fiddle::Function.new(libreadline['rl_reset_line_state'], [Fiddle::TYPE_VOID], Fiddle::TYPE_INT)
+    Pryline.define_singleton_method(:reset_line_state) do
+      reset_line_state.call(nil)
+    end
+
+    # DICEY!!
+    # add descriptive function name, so as to make
+    # it bindable from inputrc
+    add_defun = Fiddle::Function.new(
+      libreadline['rl_add_defun'],
+      [Fiddle::TYPE_UINTPTR_T, Fiddle::TYPE_UINTPTR_T, Fiddle::TYPE_INT],
+      Fiddle::TYPE_INT
+    )
+    Pryline.define_singleton_method(:add_defun) do |name, key = -1, &block|
+      BLOCK_CALLERS[name] = Fiddle::Closure::BlockCaller.new(
+        Fiddle::TYPE_VOID,
+        [Fiddle::TYPE_VOID],
+        &block
+      )
+      add_defun.call(
+        Fiddle::Pointer[name],
+        BLOCK_CALLERS[name].to_i,
+        key
+      )
     end
 
     # helpers
